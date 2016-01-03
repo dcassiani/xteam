@@ -1,9 +1,10 @@
-package com.xteam.exam;
+package com.discountasciiwarehouse.ecommerce.proxy.adapter;
 
 import java.lang.reflect.Type;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 
 import com.google.gson.JsonDeserializationContext;
@@ -14,18 +15,18 @@ import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 
-public class DateTypeConverter implements JsonSerializer<Date>, JsonDeserializer<Date> {
+public class CalendarTypeConverter implements JsonSerializer<Calendar>, JsonDeserializer<Calendar> {
+
 
     private static final String ISO_DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss";
 
-    // No need for an InstanceCreator since DateTime provides a no-args constructor
     @Override
-    public JsonElement serialize(Date src, Type srcType, JsonSerializationContext context) {
+    public JsonElement serialize(Calendar src, Type srcType, JsonSerializationContext context) {
         return new JsonPrimitive(src.toString());
     }
 
     @Override
-    public Date deserialize(JsonElement json, Type type, JsonDeserializationContext context) throws JsonParseException {
+    public Calendar deserialize(JsonElement json, Type type, JsonDeserializationContext context) throws JsonParseException {
 
         DateFormat dateFormat = new SimpleDateFormat(ISO_DATE_FORMAT);
         Date date = null;
@@ -36,7 +37,10 @@ public class DateTypeConverter implements JsonSerializer<Date>, JsonDeserializer
             e.printStackTrace();
             return null;
         }
+        
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(date);
 
-        return date;
+        return calendar;
     }
 }

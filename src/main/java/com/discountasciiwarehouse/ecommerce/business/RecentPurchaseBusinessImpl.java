@@ -1,127 +1,89 @@
 package com.discountasciiwarehouse.ecommerce.business;
 
-import javax.ws.rs.HttpMethod;
-import javax.ws.rs.core.MediaType;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
-import org.springframework.stereotype.Component;
+import javax.annotation.PostConstruct;
+import javax.inject.Inject;
 
-import com.discountasciiwarehouse.ecommerce.bean.RecentPurchaseWrapper;
-import com.discountasciiwarehouse.ecommerce.bean.UserContainer;
+import org.apache.log4j.Logger;
+import org.springframework.stereotype.Service;
+
+import com.discountasciiwarehouse.ecommerce.bean.PurchaseDTO;
+import com.discountasciiwarehouse.ecommerce.bean.RecentPurchaseDTO;
 import com.discountasciiwarehouse.ecommerce.bean.UserDTO;
-import com.google.gson.Gson;
-import com.sun.jersey.api.client.Client;
-import com.sun.jersey.api.client.ClientResponse;
-import com.sun.jersey.api.client.WebResource;
+import com.discountasciiwarehouse.ecommerce.proxy.ProductProxy;
+import com.discountasciiwarehouse.ecommerce.proxy.PurchaseProxy;
+import com.discountasciiwarehouse.ecommerce.proxy.UserProxy;
 
-@Component
-public class RecentPurchaseBusinessImpl implements RecentPurchaseBusiness{
+@Service("recentPurchaseBusiness")
+public class RecentPurchaseBusinessImpl implements RecentPurchaseBusiness {
 
-	/**
-	//fetch 5 recent purchases for the user 
-	purchases/by_user/:username?limit=5
+	private Logger logger = Logger.getLogger(RecentPurchaseBusinessImpl.class);
 
-	//for each of those products, get a list of all people who previously purchased that product 
-	purchases/by_product/:product_id
+	@Inject
+	ProductProxy productProxy;
 
-	//at the same time, request info about the products
-	products/:product_id
-		 **/
+	@Inject
+	PurchaseProxy purchaseProxy;
 
-	
-	private final static String SOURCE_URL = "http://localhost:8000/api/";
-	
-	private final static String USERS_METHOD = "users/";
-	private final static String PURCHASE_METHOD = "purchases/";
-	private final static String PRODUCT_METHOD = "products/";
-	
-	private final static String BY_USER_FILTER = "by_user/";
-	private final static String BY_PRODUCT_FILTER = "by_product/";
-	
-	@Override
-	public RecentPurchaseWrapper getRecentPurchaseList(String username){
-		String urlDataAcess = null;
-		try {
+	@Inject
+	UserProxy userProxy;
 
-//            JsonElement taskRequest = null; //trocar para CRIAR POJO DE PERGUNTA
-//			ClientResponse response = executeRequestWithJsonHeaders(urlApiTasks , new GsonBuilder()
-//                    .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES).create().toJson(taskRequest),
-//                    HttpMethod.GET);
-
-			ClientResponse response = executeRequestWithJsonHeaders(urlDataAcess, null, HttpMethod.GET);
-            
-//            GsonBuilder deserializerBuilder = new GsonBuilder().registerTypeAdapter(Calendar.class,
-//                    new CalendarTypeConverter());
-
-//            DomainAutoRenewCheckResponse autoRenewCheckResponse = deserializerBuilder.create().fromJson(entity,
-//                    DomainAutoRenewCheckResponse.class);
-//            
-//            if (responseStatusIsNotAccepted(response)) {
-
-                String responseReturned = response.toString();
-
-                int status = response.getStatus();
-
-                String entity = response.getEntity(String.class);
-
-                System.out.println(responseReturned);
-                System.out.println(entity);
-                
-//            } else {
-//                urlRet = response.getEntity(String.class);
-//            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-		return null;
-
+	@PostConstruct
+	public void init() {
+		logger.info("RecentPurchaseBusinessImpl started over CDI");
 	}
 
-    private static ClientResponse executeRequestWithJsonHeaders(String url, 
-    		String jsonBody, String method) throws Exception {
+	@Override
+	public List<RecentPurchaseDTO> getRecentPurchaseList(UserDTO user) {
 
-        Client client = Client.create();
-        WebResource webResource = client.resource(url);
+		List<RecentPurchaseDTO> recentPurchaseList = new ArrayList<RecentPurchaseDTO>();
+		try {
+			List<PurchaseDTO> userPurchaseList = purchaseProxy
+					.getUserRecentPurchasesList(user);
 
-        if (jsonBody != null) {
-            return webResource.type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON)
-                    .method(method, ClientResponse.class, jsonBody);
-        }
-
-        return webResource.type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON)
-                .method(method, ClientResponse.class);
-    }
-    
-    private boolean responseStatusIsNotOk(ClientResponse response) {
-        return response == null || (response.getStatus() != ClientResponse.Status.OK.getStatusCode());
-    }
-
-    private boolean responseStatusIsNotAccepted(ClientResponse response) {
-        return response == null || (response.getStatus() != ClientResponse.Status.ACCEPTED.getStatusCode());
-    }
-
-    @Override
-	public UserDTO getUser(String username) {
-		if (username == null){
-			return null;
-		}
-		
-		String urlDataAcess = SOURCE_URL.concat(USERS_METHOD).concat(username);
-		
-		try{
-			ClientResponse response = executeRequestWithJsonHeaders(urlDataAcess, null, HttpMethod.GET);
-	        
-			if (responseStatusIsNotOk(response)) {
-				 return null;	
+			for (PurchaseDTO userPurchase : userPurchaseList) {
+				RecentPurchaseDTO recentPurchase = productProxy
+						.getProductInfo(userPurchase.getProductId());
+				recentPurchase.setRecent(purchaseProxy
+						.getProductPurchaseUsers(userPurchase.getProductId()));
+				recentPurchaseList.add(recentPurchase);
 			}
-			
-			String entity = response.getEntity(String.class);
-			UserContainer userList = new Gson().fromJson(entity, UserContainer.class);
-			return userList.getUser();
-	          
-        } catch (Exception e) {
-        	e.printStackTrace();
-        	return null;
-        }
+
+		} catch (Exception e) {
+			logger.error("RecentPurchaseBusinessImpl.getRecentPurchaseList("
+					+ user.getUsername() + ")", e);
+		}
+
+		return sortByBuyersCount(recentPurchaseList);
+	}
+
+	@Override
+	public UserDTO getUser(String username) {
+		return userProxy.getUser(username);
+	}
+
+	/**
+	 * sort it so that the product with the highest number of recent purchases
+	 * is first
+	 */
+	private List<RecentPurchaseDTO> sortByBuyersCount(
+			List<RecentPurchaseDTO> recentPurchaseList) {
+
+		List<RecentPurchaseDTO> sortedList = new ArrayList<RecentPurchaseDTO>();
+		sortedList.addAll(recentPurchaseList);
+
+		Comparator<RecentPurchaseDTO> comparator = new Comparator<RecentPurchaseDTO>() {
+			public int compare(RecentPurchaseDTO rp1, RecentPurchaseDTO rp2) {
+				return (rp2.getRecent().size() - rp1.getRecent().size());
+			}
+		};
+		Collections.sort(sortedList, comparator);
+
+		return sortedList;
 	}
 
 }
