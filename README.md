@@ -1,3 +1,5 @@
+#Discount ASCII Warehouse Ecommerce REST API
+
 This is the Discount ASCII Warehouse Ecommerce REST API, which produces a JSON String with a list of "Popular purchases", so customers can see who else bought the same products as them.
 
 The application accepts HTTP requests to WILDFLY_SERVER_URL/api/recent_purchases/{username} and respond with a list of recently purchased products, and the names of other users who recently purchased them.
