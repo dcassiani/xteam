@@ -8,13 +8,13 @@ import com.sun.jersey.api.client.WebResource;
 
 public class JsonProxy{
 
+	protected Client client = Client.create();
 	
 	protected final static String SOURCE_URL = getDawPurchasesApiUrl();
 
 	protected ClientResponse executeRequestJson(String url, 
     		String jsonBody, String method) throws Exception {
 
-		Client client = Client.create();
         WebResource webResource = client.resource(url);
 
         if (jsonBody != null) {
@@ -22,7 +22,8 @@ public class JsonProxy{
                     .method(method, ClientResponse.class, jsonBody);
         }
 
-        ClientResponse response = webResource.type(MediaType.APPLICATION_JSON_TYPE)
+        ClientResponse response = webResource
+        		.type(MediaType.APPLICATION_JSON_TYPE)
         		.accept(MediaType.APPLICATION_JSON)
                 .method(method, ClientResponse.class);
         
